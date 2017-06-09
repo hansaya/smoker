@@ -42,11 +42,12 @@
 //#include <PubSubClient.h>
 //WiFiClient espClient;
 //PubSubClient client(espClient);
+
 #endif
 
 #define OLED_RESET_PIN 4
 #define FAN_PIN 15
-unsigned long previousMillis = 0; // For the timer
+unsigned long prevMilForInputRead = 0; // For the timer
 const long interval = 2000;  // Tempurature update rate
 boolean error;
 
@@ -58,15 +59,37 @@ Adafruit_SSD1306 display(OLED_RESET_PIN);
 //Define the aggressive and conservative Tuning Parameters
 double aggKp = 4, aggKi = 0.2, aggKd = 1;
 double consKp = 1, consKi = 0.05, consKd = 0.25;
-double m_setPoint, Temp, Output;
+double m_setPoint, m_temp, Output;
 //Specify the links and initial tuning parameters
-PID myPID(&Temp, &Output, &m_setPoint, consKp, consKi, consKd, DIRECT);
+PID myPID(&m_temp, &Output, &m_setPoint, consKp, consKi, consKd, DIRECT);
 
 // Web page stuff
 #ifdef WEBPAGE
-#include "web_server.h"
-WebInterface webPage (Temp, m_setPoint);
+#include <FS.h>
+#include <NtpClientLib.h>
+#include <TimeLib.h>
+#include <ArduinoJson.h>
+
+#define HISTORY_FILE "/history.json"
+
+ESP8266WebServer m_server (80);
+
+StaticJsonBuffer<10000> jsonBuffer;                 // Buffer static contenant le JSON courant - Current JSON static buffer
+JsonObject& root = jsonBuffer.createObject();
+JsonArray& timestamp = root.createNestedArray("timestamp");
+JsonArray& hist_t = root.createNestedArray("t");
+JsonArray& hist_h = root.createNestedArray("h");
+JsonArray& hist_pa = root.createNestedArray("pa");
+JsonArray& bart = root.createNestedArray("bart");   // Clé historgramme (temp/humidité) - Key histogramm (temp/humidity)
+JsonArray& barh = root.createNestedArray("barh");   // Clé historgramme (temp/humidité) - Key histogramm (temp/humidity)
+
+const long intervalHist = 1000 * 60 * 5;  // 5 mesures / heure - 5 measures / hours
+unsigned long previousMillis = intervalHist;  // Dernier point enregistré dans l'historique - time of last point added
+int     sizeHist = 84 ;
+char json[10000];                                   // Buffer pour export du JSON - JSON export buffer
 #endif
+
+
 
 void setup() {
   // Debugging serial
@@ -123,7 +146,52 @@ void setup() {
 
   // Web page stuff
 #ifdef WEBPAGE
-  webPage.Begin ();
+  // Real time
+  NTP.onNTPSyncEvent([](NTPSyncEvent_t error) {
+    if (error) {
+      Serial.print("Time Sync error: ");
+      if (error == noResponse)
+        Serial.println("NTP server not reachable");
+      else if (error == invalidAddress)
+        Serial.println("Invalid NTP server address");
+    }
+    else {
+      Serial.print("Got NTP time: ");
+      Serial.println(NTP.getTimeDateString(NTP.getLastNTPSync()));
+    }
+  });
+  // Serveur NTP, decalage horaire, heure été - NTP Server, time offset, daylight
+  NTP.begin("pool.ntp.org", -6, true);
+  NTP.setInterval(60000);
+
+  // Load the flash
+  if (!SPIFFS.begin()) {
+    Serial.println("SPIFFS Mount failed");        // Problème avec le stockage SPIFFS - Serious problem with SPIFFS
+  } else {
+    Serial.println("SPIFFS Mount succesfull");
+    loadHistory();
+  }
+  delay(50);
+
+  // Config the web server
+  m_server.on("/tabmesures.json", sendTabMesures);
+  m_server.on("/mesures.json", sendMesures);
+  m_server.on("/gpio", updateGpio);
+  m_server.on("/graph_temp.json", sendHistory);
+
+  m_server.serveStatic("/js", SPIFFS, "/js");
+  m_server.serveStatic("/css", SPIFFS, "/css");
+  m_server.serveStatic("/img", SPIFFS, "/img");
+  m_server.serveStatic("/", SPIFFS, "/index.html");
+
+  m_server.begin();
+  Serial.println ( "HTTP server started" );
+
+  Serial.print("Uptime :");
+  Serial.println(NTP.getUptime());
+  Serial.print("LastBootTime :");
+  Serial.println(NTP.getLastBootTime());
+
 #endif
 }
 
@@ -135,16 +203,16 @@ void loop() {
 
   // Update the fan speed only so often.
   unsigned long currentMillis = millis();// Time now
-  if (currentMillis - previousMillis >= interval) {
-    previousMillis = currentMillis;
+  if (currentMillis - prevMilForInputRead >= interval) {
+    prevMilForInputRead = currentMillis;
 
     // Read the temperature
-    Temp = ktc.readFahrenheit();
+    m_temp = ktc.readFahrenheit();
 
     displayData();
 
     // Set how aggresive we want the pid controling to be.
-    if ((m_setPoint - Temp) < 10)
+    if ((m_setPoint - m_temp) < 10)
     { //we're close to setpoint, use conservative tuning parameters
       myPID.SetTunings(consKp, consKi, consKd);
     }
@@ -163,8 +231,8 @@ void loop() {
   }
 
 #ifdef WEBPAGE
-  webPage.dataLogging ();
-  webPage.serve ();
+  m_server.handleClient();
+  addPtToHist ();
 #endif
 }
 
@@ -197,7 +265,7 @@ void displayData() {
   display.setCursor(18, 40);
   display.print((char)248);
   display.print("F:");
-  display.println(Temp);
+  display.println(m_temp);
   display.setTextSize(1);
   if (error)
     display.println("ERROR!");
@@ -206,4 +274,181 @@ void displayData() {
   display.display();
   display.clearDisplay();
 #endif
+}
+
+void addPtToHist() {
+  unsigned long currentMillis = millis();
+
+  //Serial.println(currentMillis - previousMillis);
+  if ( currentMillis - previousMillis > intervalHist ) {
+    long int tps = NTP.getTime();
+    previousMillis = currentMillis;
+    //Serial.println(NTP.getTime());
+    if ( tps > 0 ) {
+      timestamp.add(tps);
+      hist_t.add(double_with_n_digits(m_temp, 1));
+      hist_h.add(double_with_n_digits(m_setPoint, 1));
+      hist_pa.add(double_with_n_digits(0, 1));
+
+      //root.printTo(Serial);
+      if ( hist_t.size() > sizeHist ) {
+        //Serial.println("efface anciennes mesures");
+        timestamp.removeAt(0);
+        hist_t.removeAt(0);
+        hist_h.removeAt(0);
+        hist_pa.removeAt(0);
+      }
+      //Serial.print("size hist_t ");Serial.println(hist_t.size());
+      calcStat();
+      delay(100);
+      saveHistory();
+      //root.printTo(Serial);
+    }
+  }
+}
+
+void updateGpio() {
+  String gpio = m_server.arg("id");
+  String etat = m_server.arg("etat");
+  String success = "1";
+  int pin = D5;
+  if ( gpio == "D5" ) {
+    pin = D5;
+  } else if ( gpio == "D7" ) {
+    pin = D7;
+  } else if ( gpio == "D8" ) {
+    pin = D8;
+  } else {
+    pin = D5;
+  }
+  Serial.println(pin);
+  if ( etat == "1" ) {
+    digitalWrite(pin, HIGH);
+  } else if ( etat == "0" ) {
+    digitalWrite(pin, LOW);
+  } else {
+    success = "1";
+    Serial.println("Err Led Value");
+  }
+
+  String json = "{\"gpio\":\"" + String(gpio) + "\",";
+  json += "\"etat\":\"" + String(etat) + "\",";
+  json += "\"success\":\"" + String(success) + "\"}";
+
+  m_server.send(200, "application/json", json);
+  Serial.println("GPIO updated");
+}
+
+void sendMesures() {
+  String json = "{\"t\":\"" + String(m_temp) + "\",";
+  json += "\"h\":\"" + String(m_setPoint) + "\",";
+  json += "\"pa\":\"" + String(0) + "\"}";
+
+  m_server.send(200, "application/json", json);
+  Serial.println("Send measures");
+}
+
+void calcStat() {
+  float statTemp[7] = { -999, -999, -999, -999, -999, -999, -999};
+  float statHumi[7] = { -999, -999, -999, -999, -999, -999, -999};
+  int nbClass = 7;  // Nombre de classes - Number of classes
+  int currentClass = 0;
+  int sizeClass = hist_t.size() / nbClass;  // 2
+  double temp;
+  //
+  if ( hist_t.size() >= sizeHist ) {
+    //Serial.print("taille classe ");Serial.println(sizeClass);
+    //Serial.print("taille historique ");Serial.println(hist_t.size());
+    for ( int k = 0 ; k < hist_t.size() ; k++ ) {
+      temp = root["t"][k];
+      if ( statTemp[currentClass] == -999 ) {
+        statTemp[ currentClass ] = temp;
+      } else {
+        statTemp[ currentClass ] = ( statTemp[ currentClass ] + temp ) / 2;
+      }
+      temp = root["h"][k];
+      if ( statHumi[currentClass] == -999 ) {
+        statHumi[ currentClass ] = temp;
+      } else {
+        statHumi[ currentClass ] = ( statHumi[ currentClass ] + temp ) / 2;
+      }
+
+      if ( ( k + 1 ) > sizeClass * ( currentClass + 1 ) ) {
+        //Serial.print("k ");Serial.print(k + 1);Serial.print(" Cellule statTemp = ");Serial.println(statTemp[ currentClass ]);
+        currentClass++;
+      } else {
+        //Serial.print("k ");Serial.print(k + 1);Serial.print(" < ");Serial.println(sizeClass * currentClass);
+      }
+    }
+
+    Serial.println("Histogram - Temperature");
+    for ( int i = 0 ; i < nbClass ; i++ ) {
+      Serial.print(statTemp[i]); Serial.print('|');
+    }
+    Serial.println("Histogram - Humidity ");
+    for ( int i = 0 ; i < nbClass ; i++ ) {
+      Serial.print(statHumi[i]); Serial.print('|');
+    }
+    Serial.print("");
+    if ( bart.size() == 0 ) {
+      for ( int k = 0 ; k < nbClass ; k++ ) {
+        bart.add(statTemp[k]);
+        barh.add(statHumi[k]);
+      }
+    } else {
+      for ( int k = 0 ; k < nbClass ; k++ ) {
+        bart.set(k, statTemp[k]);
+        barh.set(k, statHumi[k]);
+      }
+    }
+  }
+}
+
+void sendTabMesures() {
+  double temp = root["t"][0];      // Récupère la plus ancienne mesure (temperature) - get oldest record (temperature)
+  String json = "[";
+  json += "{\"mesure\":\"Température\",\"valeur\":\"" + String(m_temp) + "\",\"unite\":\"°C\",\"glyph\":\"glyphicon-indent-left\",\"precedente\":\"" + String(temp) + "\"},";
+  temp = root["h"][0];             // Récupère la plus ancienne mesure (humidite) - get oldest record (humidity)
+  json += "{\"mesure\":\"Humidité\",\"valeur\":\"" + String(m_setPoint) + "\",\"unite\":\"%\",\"glyph\":\"glyphicon-tint\",\"precedente\":\"" + String(temp) + "\"},";
+  temp = root["pa"][0];             // Récupère la plus ancienne mesure (pression atmospherique) - get oldest record (Atmospheric Pressure)
+  json += "{\"mesure\":\"Pression Atmosphérique\",\"valeur\":\"" + String(0) + "\",\"unite\":\"mbar\",\"glyph\":\"glyphicon-dashboard\",\"precedente\":\"" + String(temp) + "\"}";
+  json += "]";
+  m_server.send(200, "application/json", json);
+  Serial.println("Send data tab");
+}
+
+void sendHistory() {
+  root.printTo(json, sizeof(json));             // Export du JSON dans une chaine - Export JSON object as a string
+  m_server.send(200, "application/json", json);   // Envoi l'historique au client Web - Send history data to the web client
+  Serial.println("Send History");
+}
+
+void loadHistory() {
+  File file = SPIFFS.open(HISTORY_FILE, "r");
+  if (!file) {
+    Serial.println("Aucun historique existe - No History Exist");
+  } else {
+    size_t size = file.size();
+    if ( size == 0 ) {
+      Serial.println("Fichier historique vide - History file empty !");
+    } else {
+      std::unique_ptr<char[]> buf (new char[size]);
+      file.readBytes(buf.get(), size);
+      JsonObject& root = jsonBuffer.parseObject(buf.get());
+      if (!root.success()) {
+        Serial.println("Impossible de lire le JSON - Impossible to read JSON file");
+      } else {
+        Serial.println("Historique charge - History loaded");
+        root.prettyPrintTo(Serial);
+      }
+    }
+    file.close();
+  }
+}
+
+void saveHistory() {
+  Serial.println("Save History");
+  File historyFile = SPIFFS.open(HISTORY_FILE, "w");
+  root.printTo(historyFile); // Exporte et enregsitre le JSON dans la zone SPIFFS - Export and save JSON object to SPIFFS area
+  historyFile.close();
 }
