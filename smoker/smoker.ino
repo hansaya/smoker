@@ -15,7 +15,7 @@
    Flash storage
 */
 
-#define LCDON
+//#define LCDON
 #define WIFION
 #define WEBPAGE
 
@@ -39,9 +39,10 @@
 #include <ArduinoOTA.h>
 
 //MQTT stuff
-//#include <PubSubClient.h>
-//WiFiClient espClient;
-//PubSubClient client(espClient);
+#include <PubSubClient.h>
+WiFiClient espClient;
+PubSubClient client(espClient);
+#define MQTT_SERVER "172.168.1.10"
 
 #endif
 
@@ -62,6 +63,19 @@ double consKp = 1, consKi = 0.05, consKd = 0.25;
 double m_setPoint, m_temp, Output;
 //Specify the links and initial tuning parameters
 PID myPID(&m_temp, &Output, &m_setPoint, consKp, consKi, consKd, DIRECT);
+
+static int preHeatingTime = 1800000; // 30 minutes of pre-heating time
+static int notificationTreshhold = 5400000; // Use to send notifications every 1.5 hours (90 Minutes)
+int notificationCounter = 1; // Will increase every time a notification is send
+bool timeNotification = false;
+bool heatNotification = false;
+
+unsigned int pwmValue = 1023;
+bool fast = false;
+char macAddressChar[18];
+char* heatStatusStr = "openhab/home/smoker/heatStatus";
+char* timeStatusStr = "openhab/home/smoker/timeStatus";
+unsigned long reconnectPreviousMillis = 0;
 
 // Web page stuff
 #ifdef WEBPAGE
@@ -88,8 +102,6 @@ unsigned long previousMillis = intervalHist;  // Dernier point enregistré dans 
 int     sizeHist = 84 ;
 char json[10000];                                   // Buffer pour export du JSON - JSON export buffer
 #endif
-
-
 
 void setup() {
   // Debugging serial
@@ -133,6 +145,17 @@ void setup() {
   Serial.println("Ready");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
+  
+  //mqqt config
+  DNSClient dns;
+  IPAddress dns_ip(172, 168, 1, 1);
+  IPAddress out_ip;
+  dns.begin(dns_ip);
+  Serial.print("mqtt server: ");
+  dns.getHostByName(MQTT_SERVER, out_ip);
+
+  Serial.println(out_ip);
+  client.setServer(out_ip, 1883);
 #else
   WiFi.mode(WIFI_OFF);
 #endif
@@ -208,8 +231,12 @@ void loop() {
 
     // Read the temperature
     m_temp = ktc.readFahrenheit();
+    m_temp = 0;
 
     displayData();
+
+    setNotifications();
+    sendNotifications();
 
     // Set how aggresive we want the pid controling to be.
     if ((m_setPoint - m_temp) < 10)
@@ -238,12 +265,12 @@ void loop() {
 
 void displayData() {
   // Debugging stuff
-  Serial.print("C = ");
-  Serial.print(ktc.readCelsius());
-  Serial.print("\t F = ");
-  Serial.println(ktc.readFahrenheit());
-  Serial.print ("pid output: ");
-  Serial.println (Output);
+  //Serial.print("C = ");
+  //Serial.print(ktc.readCelsius());
+  //Serial.print("\t F = ");
+  //Serial.println(ktc.readFahrenheit());
+  //Serial.print ("pid output: ");
+  //Serial.println (Output);  
 
 #ifdef LCDON
   display.setTextSize(1);
@@ -276,22 +303,26 @@ void displayData() {
 #endif
 }
 
+#ifdef WEBPAGE
 void addPtToHist() {
   unsigned long currentMillis = millis();
 
   //Serial.println(currentMillis - previousMillis);
-  if ( currentMillis - previousMillis > intervalHist ) {
+  if ( currentMillis - previousMillis > intervalHist ) 
+  {
     long int tps = NTP.getTime();
     previousMillis = currentMillis;
     //Serial.println(NTP.getTime());
-    if ( tps > 0 ) {
+    if ( tps > 0 ) 
+    {
       timestamp.add(tps);
       hist_t.add(double_with_n_digits(m_temp, 1));
       hist_h.add(double_with_n_digits(m_setPoint, 1));
       hist_pa.add(double_with_n_digits(0, 1));
 
       //root.printTo(Serial);
-      if ( hist_t.size() > sizeHist ) {
+      if ( hist_t.size() > sizeHist ) 
+      {
         //Serial.println("efface anciennes mesures");
         timestamp.removeAt(0);
         hist_t.removeAt(0);
@@ -307,7 +338,8 @@ void addPtToHist() {
   }
 }
 
-void updateGpio() {
+void updateGpio()
+{
   String gpio = m_server.arg("id");
   String etat = m_server.arg("etat");
   String success = "1";
@@ -348,7 +380,8 @@ void sendMesures() {
   Serial.println("Send measures");
 }
 
-void calcStat() {
+void calcStat() 
+{
   float statTemp[7] = { -999, -999, -999, -999, -999, -999, -999};
   float statHumi[7] = { -999, -999, -999, -999, -999, -999, -999};
   int nbClass = 7;  // Nombre de classes - Number of classes
@@ -404,7 +437,8 @@ void calcStat() {
   }
 }
 
-void sendTabMesures() {
+void sendTabMesures() 
+{
   double temp = root["t"][0];      // Récupère la plus ancienne mesure (temperature) - get oldest record (temperature)
   String json = "[";
   json += "{\"mesure\":\"Température\",\"valeur\":\"" + String(m_temp) + "\",\"unite\":\"°C\",\"glyph\":\"glyphicon-indent-left\",\"precedente\":\"" + String(temp) + "\"},";
@@ -417,13 +451,15 @@ void sendTabMesures() {
   Serial.println("Send data tab");
 }
 
-void sendHistory() {
+void sendHistory() 
+{
   root.printTo(json, sizeof(json));             // Export du JSON dans une chaine - Export JSON object as a string
   m_server.send(200, "application/json", json);   // Envoi l'historique au client Web - Send history data to the web client
   Serial.println("Send History");
 }
 
-void loadHistory() {
+void loadHistory()
+{
   File file = SPIFFS.open(HISTORY_FILE, "r");
   if (!file) {
     Serial.println("Aucun historique existe - No History Exist");
@@ -446,9 +482,110 @@ void loadHistory() {
   }
 }
 
-void saveHistory() {
+void saveHistory()
+{
   Serial.println("Save History");
   File historyFile = SPIFFS.open(HISTORY_FILE, "w");
   root.printTo(historyFile); // Exporte et enregsitre le JSON dans la zone SPIFFS - Export and save JSON object to SPIFFS area
   historyFile.close();
 }
+#endif
+
+
+void setNotifications ()
+{
+    if (millis() > preHeatingTime) // Pass the pre-heating step
+    {
+        long notificationTimer = notificationTreshhold * notificationCounter;
+        if (millis() > notificationTimer) // if the current time 
+        {
+            notificationCounter = notificationCounter + 1;
+            timeNotification = true;
+        }
+
+        if ((m_setPoint - m_temp) > 15) // if after 40 minutes the temp diffrrent between current and set is more than 15 send notification
+        {
+            heatNotification = true;
+        }
+    }
+}
+
+void sendNotifications()
+{
+    connectToOpenHab();
+    
+    if (timeNotification)
+    {
+        // send time notification
+        client.publish(timeStatusStr, "true");
+        timeNotification = false;
+    }
+
+    if (heatNotification)
+    { 
+        // send heat notification
+        client.publish(heatStatusStr, "true");
+        heatNotification = false;
+    }
+}
+
+#ifdef WIFION
+void callback(char* topic, byte* payload, unsigned int length) 
+{
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+
+  if (length > 0)
+  {
+    //payload[length] = '\0';
+    //updateThePwmValue ((char*) payload);
+    //    pwmValue = String((char*) payload).toInt ();
+    //      pwmValue = map(precentage, 0, 100, 0, 1023);
+    //      Serial.print(precentage);
+    //      Serial.print("/");
+    // Serial.println(pwmValue);
+    // fast = false;
+  }
+}
+
+void reconnect() 
+{
+  // Loop until we're reconnected
+  if (!client.connected()) 
+  {
+    Serial.print("Attempting MQTT connection...");
+    if (client.connect(macAddressChar, "openhabian", "openhabian")) 
+    {
+      Serial.println("connected");
+    } 
+    else 
+    {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+    }
+  }
+}
+
+void connectToOpenHab()
+{
+  unsigned long currentMillis = millis();
+  // Run only if wifi is on
+  
+  #ifdef WIFION
+  ArduinoOTA.handle();
+  
+  // MQTT stuff
+  if (!client.connected()) 
+  {
+    if (currentMillis - reconnectPreviousMillis >= 5000) 
+    {
+      reconnectPreviousMillis = currentMillis;
+      reconnect();
+    }
+  }
+  client.loop();
+  #endif
+}
+
+#endif
