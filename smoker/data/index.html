@@ -8,37 +8,38 @@
     <script src="http://cdnjs.cloudflare.com/ajax/libs/bootstrap-table/1.11.0/bootstrap-table.min.js"></script>
     <link rel="stylesheet" href="http://cdnjs.cloudflare.com/ajax/libs/bootstrap-table/1.11.0/bootstrap-table.min.css">
     <link href="https://maxcdn.bootstrapcdn.com/bootswatch/3.3.7/superhero/bootstrap.min.css" rel="stylesheet" title="main">
-    <title>Demo ESP8266 SPIFFS + Boostrap - www.projetsdiy.fr</title>
+    <title>Smoky</title>
   </head>
   <body>
     <div class="container-fluid">
-      <h1>ESP8266 Web Server + SPIFFS + Bootstrap + Google Charts </h1>
+      <h1>Smoky </h1>
       <ul class="nav nav-tabs" id="tab">
-        <li class="active"><a href="#tab_mesures" data-toggle="tab">Mesures</a></li>
-        <li><a href="#tab_graphs" data-toggle="tab">Graphiques</a></li>
-        <li><a href="#tab_gpio" data-toggle="tab">GPIO  </a></li>
+        <li class="active"><a href="#tab_mesures" data-toggle="tab">Dashboard</a></li>
+        <li><a href="#tab_graphs" data-toggle="tab">Chart</a></li>
         <li><a href="#tab_configuration" data-toggle="tab">Configuration</a></li>
       </ul>
       <div class="tab-content">
         <div class="tab-pane fade in active" id="tab_mesures">        
-          <h2>Mini station m&eacute;t&eacute;o (DHT22 + BMP180)</h2>
+          <h2>Smoker Controller</h2>
           <ul class="nav nav-pills">
             <li class="active"><a href="#">
-                <div class="span badge pull-right" id="temperature">-</div> Temp&eacute;rature</a></li>
+                <div class="span badge pull-right" id="temperature">-</div> Temperature</a></li>
             <li><a href="#">
-                <div class="span badge pull-right" id="humidite">-</div> Humidit&eacute;</a></li>
-            <li><a href="#">
-                <div class="span badge pull-right" id="pa">-</div> Pression atmosph&eacute;rique</a></li>
+                <div class="span badge pull-right" id="settemp">-</div> Set Temperature</a></li>
           </ul><br>
-          <table id="table_mesures" data-toggle="table" data-show-colunns="true">
-            <thead>
-              <tr>
-                <th data-field="mesure" data-align="left" data-sortable="true" data-formatter="labelFormatter">Mesure</th>
-                <th data-field="valeur" data-align="left" data-sortable="true" data-formatter="valueFormatter">Valeur</th>
-                <th data-field="precedente" data-align="left" data-sortable="true" data-formatter="vpFormatter">Valeur Pr&eacute;c&eacute;dente</th>
-              </tr>
-            </thead>
-          </table>
+          <div class="row">
+            <div class="col-xs-6 col-md-6">
+              <div class="div" id="tempGauge" style="width: 100%; height: 300px; margin-left: 25%">    </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-xs-4 col-md-4">
+              <div class="button btn btn-success btn-lg" id="UP" type="button">UP</div>
+            </div>
+            <div class="col-xs-4 col-md-4">
+              <div class="button btn btn-danger btn-lg" id="DOWN" type="button">DOWN</div>
+            </div>
+          </div>
         </div>
         <div class="tab-pane fade" id="tab_graphs">
           <div class="panel panel-default">
@@ -48,86 +49,16 @@
                   <div id="labelTemp"></div>
                 </div>
                 <div class="col-xs-4 col-md-4">
-                  <div id="labelHumi"></div>
-                </div>
-                <div class="col-xs-4 col-md-4">
-                  <div id="labelPa"></div>
+                  <div id="labelSetTemp"></div>
                 </div>
               </div>
             </div>
             <div class="panel body">
               <div class="row">
-                <div class="col-xs-6 col-md-6">
-                  <div class="div" id="chartTemp" style="width: 100%; height: 300px"></div>
-                </div>
-                <div class="col-xs-6 col-md-6">
-                  <div class="div" id="chartPA" style="width: 100%; height: 300px"></div>
+                <div class="col-xs-12 col-md-12">
+                  <div class="div" id="chartTemp" style="width: 100%; height: 100%"></div>
                 </div>
               </div>
-              <div class="row">
-                <div class="col-xs-6 col-md-6">
-                  <h2 class="label label-info" id="zeroDataTemp">Pas encore de données</h2>
-                  <div class="div" id="barTemp" style="width: 100%; height: 300px"></div>
-                </div>
-                <div class="col-xs-6 col-md-6">
-                  <div class="div" id="gaugePA" style="width: 100%; height: 300px; margin-left: 25%">    </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="tab-pane fade" id="tab_gpio">
-          <h2>GPIO</h2>
-          <div class="row">
-            <div class="col-xs-4 col-md-4">
-              <h4 class="text-left">D5
-                <div class="span badge" id="D5_etat">OFF</div>
-              </h4>
-            </div>
-            <div class="col-xs-4 col-md-4">
-              <div class="button btn btn-success btn-lg" id="D5_On" type="button">ON</div>
-            </div>
-            <div class="col-xs-4 col-md-4">
-              <div class="button btn btn-danger btn-lg" id="D5_Off" type="button">OFF</div>
-            </div>
-          </div>
-          <div class="row">
-            <div class="col-xs-4 col-md-4">
-              <h4 class="text-left">D6
-                <div class="span badge" id="D6_etat">OFF</div>
-              </h4>
-            </div>
-            <div class="col-xs-4 col-md-4">
-              <div class="button btn btn-success btn-lg" id="D6_On" type="button">ON</div>
-            </div>
-            <div class="col-xs-4 col-md-4">
-              <div class="button btn btn-danger btn-lg" id="D6_Off" type="button">OFF</div>
-            </div>
-          </div>
-          <div class="row">
-            <div class="col-xs-4 col-md-4">
-              <h4 class="text-left">D7
-                <div class="span badge" id="D7_etat">OFF</div>
-              </h4>
-            </div>
-            <div class="col-xs-4 col-md-4">
-              <div class="button btn btn-success btn-lg" id="D7_On" type="button">ON</div>
-            </div>
-            <div class="col-xs-4 col-md-4">
-              <div class="button btn btn-danger btn-lg" id="D7_Off" type="button">OFF</div>
-            </div>
-          </div>
-          <div class="row">
-            <div class="col-xs-4 col-md-4">
-              <h4 class="text-left">D8
-                <div class="span badge" id="D8_etat">OFF</div>
-              </h4>
-            </div>
-            <div class="col-xs-4 col-md-4">
-              <div class="button btn btn-success btn-lg" id="D8_On" type="button">ON</div>
-            </div>
-            <div class="col-xs-4 col-md-4">
-              <div class="button btn btn-danger btn-lg" id="D8_Off" type="button">OFF</div>
             </div>
           </div>
         </div>
@@ -171,46 +102,42 @@
     <!--script(src='js/script.js')-->
     <script>
       var Timer_UdpateMesures;
-      var tab_pane;
+      var tab_pane = '#tab_mesures';
       google.charts.load('current', {packages: ['corechart', 'line', 'bar', 'gauge']});
       google.charts.setOnLoadCallback(drawChart);
       
       function drawChart(){
         // https://developers.google.com/chart/interactive/docs/reference?csw=1#datatable-class
         var options1 = {
-          title: 'Température et humidité - DHT22',
+          title: 'Smoker',
           legend: 'bottom',
           series: {
             // Gives each series an axis name that matches the Y-axis below.
             0: {axis: 'temperature'},
-            1: {axis: 'humidite'}
+            1: {axis: 'setTemperature'}
           },
           axes: {
             // Adds labels to each axis; they don't have to match the axis names.
             y: {
-              temperature: {label: 'Température (°C)'},
-              humidite: {label: 'Humidité (%)'}
+              temperature: {label: 'Temperature (°F)'},
+              setTemperature: {label: 'Set Temperature (°F)'}
             }
           }
         }
-        var options2 = {
-          title: 'Pression Atmosphérique - BMP180',
-          legend: {position: 'none'},
-        }
         var optionsGauge = {           
-          redFrom: 960, 
-          redTo: 990,
+          redFrom: 325, 
+          redTo: 450,
            
-          yellowFrom: 990, 
-          yellowTo: 1030, 
+          yellowFrom: 0, 
+          yellowTo: 170, 
            
-          greenFrom: 1030, 
-          greenTo: 1080, 
+          greenFrom: 170, 
+          greenTo: 325, 
            
           minorTicks: 10,
            
-          min: 960, 
-          max: 1080, 
+          min: 0, 
+          max: 450, 
            
           animation: {
               duration: 400, 
@@ -219,50 +146,53 @@
         };
         // Objets graphiques - Charts objects
         var chartTemp = new google.visualization.AreaChart(document.getElementById('chartTemp'));
-        var barTemp = new google.charts.Bar(document.getElementById('barTemp'));
-        var chartPA = new google.visualization.AreaChart(document.getElementById('chartPA'));
-        var gaugePA = new google.visualization.Gauge(document.getElementById('gaugePA'));
+        // var barTemp = new google.charts.Bar(document.getElementById('barTemp'));
+        // var chartPA = new google.visualization.AreaChart(document.getElementById('chartPA'));
+        var gaugeTemp = new google.visualization.Gauge(document.getElementById('tempGauge'));
         // Données - Data
-        dataGaugePA = new google.visualization.DataTable();
+        dataGaugeTemp = new google.visualization.DataTable();
         dataChartTemp = new google.visualization.DataTable();
-        dataBarTemp = new google.visualization.DataTable();
-        dataChartPA = new google.visualization.DataTable();
+        // dataBarTemp = new google.visualization.DataTable();
+        // dataChartPA = new google.visualization.DataTable();
         
         // Gauge Pression Atmospherique - Gauge Atmosph. pressure
-        dataGaugePA.addColumn('string', 'Label');
-        dataGaugePA.addColumn('number', 'Value');
-        dataGaugePA.addRows(1);
+        dataGaugeTemp.addColumn('string', 'Label');
+        dataGaugeTemp.addColumn('number', 'Value');
+        dataGaugeTemp.addRows(1);
         
         // Line chart temp/humidity
         dataChartTemp.addColumn('timeofday', 'Temps');
-        dataChartTemp.addColumn('number', 'Température');
-        dataChartTemp.addColumn('number', 'Humidité');
+        dataChartTemp.addColumn('number', 'temperature');
+        dataChartTemp.addColumn('number', 'setTemperature');
         
         // Bar temp/humidity
-        dataBarTemp.addColumn('string', 'Moyennes');
-        dataBarTemp.addColumn('number', 'Température');
-        dataBarTemp.addColumn('number', 'Humidité');
+        // dataBarTemp.addColumn('string', 'Moyennes');
+        // dataBarTemp.addColumn('number', 'temperature');
+        // dataBarTemp.addColumn('number', 'setTemperature');
         
         // Line Chart PA
-        dataChartPA.addColumn('timeofday', 'Temps');
-        dataChartPA.addColumn('number', 'Pression Atmosphérique');        
+        // dataChartPA.addColumn('timeofday', 'Temps');
+        // dataChartPA.addColumn('number', 'Pression Atmosphérique');        
         
         // Force l'actualisation du graphique au 1er lancement - Force chart update first launch
         var firstStart = true;
-        updateGraphs();
+        updateGraph();
+        updateGauge();
         // Actualise à intervalle régulier les graphiques - auto-update charts 
-        setInterval(updateGraphs, 10000); //60000 MS == 1 minutes
-        
-        function updateGraphs(){     
+        setInterval(updateGraph, 10000); //60000 MS == 1 minutes
+        setInterval(updateGauge, 5000); //60000 MS == 1 minutes
+
+        function updateGraph(){     
           // Uniquement si le panneau des graphs est actif - only if chart panel is active
-          if (tab_pane=='#tab_graphs' | firstStart ){
+          if (tab_pane=='#tab_graphs'|firstStart){
+            console.log("Updating the graph");
             firstStart = false;
             $.getJSON('/graph_temp.json', function(json){
-              //console.log("Mesures envoyees : " + JSON.stringify(data) + "|" + data.t + "|" + data.h + "|" + data.pa) ;
+              //console.log("Mesures envoyees : " + JSON.stringify(data) + "|" + data.t + "|" + data.s + "|" + data.pa) ;
               var _dataT = [];
-              var _dataPA = [];
-              var _dataBarTemp = [];
-              var _dataBarPA = [];
+              // var _dataBarTemp = [];
+              var barTemp = 0.0;
+              var barSetTemp = 0.0;
               
               // Data line chart  
               for ( var i = 0; i < json.timestamp.length; i++ ) {
@@ -271,60 +201,52 @@
                   [
                     [d.getHours(), d.getMinutes(), d.getSeconds()],
                     json.t[i],
-                    json.h[i]
+                    json.s[i]
                   ]
                 )
-                _dataPA.push(
-                  [
-                    [d.getHours(), d.getMinutes(), d.getSeconds()],
-                    json.pa[i]
-                  ]
-                )                
+                barTemp = json.t[i];
+                barSetTemp = json.s[i];             
               }
-              for ( var i = 0; i < json.bart.length; i++ ) {
-                _dataBarTemp.push(
-                  [
-                   i - 7 + "h",
-                   json.bart[i],
-                   json.barh[i]
-                  ]
-                ) 
-              }  
       
-              dataGaugePA.setValue(0, 0, 'mbar');
-              dataGaugePA.setValue(0, 1, json.pa[0]);
+              
               dataChartTemp.addRows(_dataT);
-              dataChartPA.addRows(_dataPA);
-              dataBarTemp.addRows(_dataBarTemp);
               
               // Efface les anciennes valeurs - Erase old data
               var nbRec = dataChartTemp.getNumberOfRows() - json.timestamp.length;
               if ( dataChartTemp.getNumberOfRows() > json.timestamp.length ) {
                 dataChartTemp.removeRows(0, nbRec );
-                dataChartPA.removeRows(0, nbRec );
               }
-              nbRec = dataBarTemp.getNumberOfRows() - json.bart.length;
-              if ( dataBarTemp.getNumberOfRows() > json.bart.length ) {
-                dataBarTemp.removeRows(0, nbRec );
-              }
-              // Masque ou affiche l'histogramme - hide or sho bar graph
-              if ( dataBarTemp.getNumberOfRows() == 0 ) {
-                $("#zeroDataTemp").show();
-                $("#barTemp").hide();
-              } else {
-                $("#zeroDataTemp").hide();
-                $("#barTemp").show();
-              }
-              // Affiche les graphiques - display charts
-              gaugePA.draw(dataGaugePA,optionsGauge);
+              console.log(nbRec);
+              
               chartTemp.draw(dataChartTemp, options1);
-              barTemp.draw(dataBarTemp, options1);
-              chartPA.draw(dataChartPA, options2);
+              $("#labelSetTemp").html("&nbsp;Set Temp&nbsp;" + "<span class='badge'> " + barSetTemp + "&#176F</span><span class='glyphicon glyphicon-tint pull-left'></span>");
+              $("#labelTemp").html("&nbsp;Temperature&nbsp;" + "<span class='badge'> " + barTemp + "&#176F</span><span class='glyphicon glyphicon-tint pull-left'></span>");
+
             }).fail(function(err){
               console.log("err getJSON graph_temp.json "+JSON.stringify(err));
             });
+          }          
+        }
+
+        function updateGauge()
+        {
+          if (tab_pane=='#tab_mesures')
+          {
+            console.log("Updating the gauge");
+            $.getJSON('/mesures.json', function(data){
+              var _dataT = [];
+              dataGaugeTemp.setValue(0, 0, '°F');
+              dataGaugeTemp.setValue(0, 1, data.t);
+              gaugeTemp.draw(dataGaugeTemp,optionsGauge);
+
+              $('#temperature').html(data.t);
+              $('#settemp').html(data.s);
+
+            }).fail(function(err){
+              console.log("err getJSON mesures.json "+JSON.stringify(err));
+            });
           }
-        }    
+        }
       }
       
               
@@ -339,57 +261,28 @@
           window.history.pushState(null, null, tab_pane);
         else 
           window.location.hash = tab_pane;
-        
-        if (tab_pane=='#tab_mesures')  {
-          $('#table_mesures').bootstrapTable('refresh',{silent:true, url:'/tabmesures.json'}); 
-        }  
       });
       
-      // Créé un timer qui actualise les données régulièrement - Create a timer than update data every n secondes
-      $('#tab_mesures').on('load-success.bs.table',function (e,data){
-        console.log("tab_mesures loaded");
-        if ($('.nav-tabs .active > a').attr('href')=='#tab_mesures') {
-          Timer_UdpateMesures=setTimeout(function(){
-            $('#table_mesures').bootstrapTable('refresh',{silent: true, showLoading: false, url: '/tabmesures.json'});
-            updateMesures();
-          },10000);
-        }                 
-      });   
-          
-      function updateMesures(){
-        $.getJSON('/mesures.json', function(data){
-          //console.log("Mesures envoyees : " + JSON.stringify(data) + "|" + data.t + "|" + data.h + "|" + data.pa) ;
-          $('#temperature').html(data.t);
-          $('#humidite').html(data.h);
-          $('#pa').html(data.pa); 
-        }).fail(function(err){
-          console.log("err getJSON mesures.json "+JSON.stringify(err));
-        });
-      };
-      
       function labelFormatter(value, row){
-        //console.log("labelFormatter");
-        //console.log(value);
-        //console.log(row);
+        // console.log("labelFormatter");
+        // console.log(value);
+        // console.log(row);
         var label = "";
-        if ( value === "Température" ) {
+        if ( value === "Temperature" ) {
           label = value + "<span class='glyphicon " + row.glyph + " pull-left'></span>";
-          $("#labelTemp").html("&nbsp;" + value + "&nbsp;" + "<span class='badge'> " + row.valeur + row.unite + "</span><span class='glyphicon " + row.glyph + " pull-left'></span>");
-        } else if ( value === "Humidité" ) {
+          $("#labelTemp").html("&nbsp;" + value + "&nbsp;" + "<span class='badge'> " + row.now + row.unite + "</span><span class='glyphicon " + row.glyph + " pull-left'></span>");
+        } else if ( value === "Set Temp" ) {
           label = value + "<span class='glyphicon " + row.glyph + " pull-left'></span>";
-          $("#labelHumi").html("&nbsp;" + value + "&nbsp;" + "<span class='badge'> " + row.valeur + row.unite + "</span><span class='glyphicon " + row.glyph + " pull-left'></span>");
-        } else if ( value === "Pression Atmosphérique" ) {
-          label = value + "<span class='glyphicon " + row.glyph + " pull-left'></span>";
-          $("#labelPa").html("&nbsp;" + value + "&nbsp;" + "<span class='badge'> " + row.valeur + row.unite + "</span><span class='glyphicon " + row.glyph + " pull-left'></span>");
+          $("#labelSetTemp").html("&nbsp;" + value + "&nbsp;" + "<span class='badge'> " + row.now + row.unite + "</span><span class='glyphicon " + row.glyph + " pull-left'></span>");
         } else {
           label = value;
         } 
         return label;
       }
       function valueFormatter(value, row){
-        //console.log("valueFormatter");
+        // console.log("valueFormatter");
         var label = "";
-        if ( row.valeur > row.precedente ) {
+        if ( row.now > row.previous ) {
           label = value + row.unite + "<span class='glyphicon glyphicon-chevron-up pull-right'></span>";
         } else { 
           label = value + row.unite + "<span class='glyphicon glyphicon-chevron-down pull-right'></span>";
@@ -397,45 +290,35 @@
         return label;
       }
       function vpFormatter(value, row){
-        //console.log("valueFormatter");
+        // console.log("valueFormatter");
         var label = "";
-        if ( row.valeur > row.precedente ) {
+        if ( row.now > row.previous ) {
           label = value + row.unite
         } else { 
           label = value + row.unite
         }
         return label;
       }  
-      
-      // Commandes sur le GPIO - GPIO change
-      $('#D5_On').click(function(){ setBouton('D5','1'); });
-      $('#D5_Off').click(function(){ setBouton('D5','0'); });
-      $('#D6_On').click(function(){ setBouton('D6','1'); });
-      $('#D6_Off').click(function(){ setBouton('D6','0'); });
-      $('#D7_On').click(function(){ setBouton('D7','1'); });
-      $('#D7_Off').click(function(){ setBouton('D7','0'); });
-      $('#D8_On').click(function(){ setBouton('D8','1'); });
-      $('#D8_Off').click(function(){ setBouton('D8','0'); });
-      
-      function setBouton(id, etat){
-        $.post("gpio?id=" + id + "&etat=" + etat).done(function(data){
-          //console.log("Retour setBouton " + JSON.stringify(data)); 
-          var id_gpio = "#" + id + "_etat";
-          //console.log(data);
-          if ( data.success === "1" | data.success === 1 ) {
-            if ( data.etat === "1" ) {
-              $(id_gpio).html("ON");
-            } else {
-              $(id_gpio).html("OFF");
-            }  
-          } else {
-            $(id_gpio).html('!');
-          }      
-        }).fail(function(err){
-          console.log("err setButton " + JSON.stringify(err));
-        });
-      } 
-      
+
+      $('#UP').click(function(){ pressUp(); });
+      $('#DOWN').click(function(){ pressDown(); });
+
+      function pressUp()
+      {
+        $.post("set", {type:1, temp:0})
+          .fail(function(err){
+          console.log("err set up " + JSON.stringify(err));
+          });
+      }
+
+      function pressDown()
+      {
+        $.post("set", {type:0, temp:0})
+          .fail(function(err){
+          console.log("err set down " + JSON.stringify(err));
+          });
+      }
+         
       // Changement du theme - Change current theme
       // Adapté de - Adapted from : https://wdtz.org/bootswatch-theme-selector.html
       var supports_storage = supports_html5_storage();
