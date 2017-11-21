@@ -49,7 +49,7 @@
 #include <PubSubClient.h>
 WiFiClient espClient;
 PubSubClient client(espClient);
-#define MQTT_SERVER "172.168.1.10"
+#define MQTT_SERVER "openhabianpi.ACID"
 #endif
 
 //Pins
